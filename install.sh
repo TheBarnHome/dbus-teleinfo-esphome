@@ -56,7 +56,9 @@ for mod in dbus gi; do
     python3 -c "import $mod" 2>/dev/null && say "  python3 -m $mod : ok" \
         || { echo "  python3 -m $mod : MANQUANT" >&2; exit 1; }
 done
-if [ -d "$INSTALL_DIR/velib_python/vedbus" ]; then
+# vedbus is a module (velib_python/vedbus.py), not a package directory: testing
+# for a directory reported "submodule missing" on a perfectly good checkout.
+if [ -f "$INSTALL_DIR/velib_python/vedbus.py" ]; then
     say "  velib_python : présent"
 else
     say "  velib_python : submodule à récupérer"
