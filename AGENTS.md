@@ -128,6 +128,19 @@ Also: a `None` value is published as an **empty array** on the bus, which is
 Venus's "invalid", not a zero. That is what an unread tariff or an offline power
 looks like to `dbus-send` and to the GUI.
 
+### `/service` is volatile, `/opt/victronenergy/service` is not
+
+`/etc/init.d/overlays.sh` copies `/opt/victronenergy/service/*` into
+`/run/overlays/service` and bind-mounts it on `/service` at every boot. A runit
+service written only into `/service` therefore works until the next reboot and
+then disappears — the meter simply is not on the bus any more, with no error
+anywhere. Both copies are written: `/opt/...` for the reboot, `/service` for the
+running system. A firmware update replaces the rootfs (and `/opt`), which is what
+`install.sh` is for.
+
+The sibling `dbus-r4850G2-charger` installs into `/service` only and has this
+failure mode; check it before relying on that driver after a power cut.
+
 ### The D-Bus main loop is single threaded
 
 An HTTP read that waits for its timeout inside a GLib callback freezes the
@@ -173,9 +186,10 @@ with the service stopped, and accept that VRM will record one discontinuity.
 - No runtime dependency outside the standard library; the GX provides Python 3,
   `dbus-python` and `gi`, nothing else.
 - Install under `/data/etc/dbus-teleinfo-esphome`; state and settings under
-  `/data/etc/dbus-teleinfo-state`; logs under `/var/log/dbus-teleinfo`. `/data` is
-  the only partition that survives a firmware update, and the stock `/service`
-  tree is restored by it.
+  `/data/etc/dbus-teleinfo-state`; logs under `/var/log/dbus-teleinfo`; runit
+  service under `/opt/victronenergy/service/teleinfo-grid` (persistent) and
+  `/service/teleinfo-grid` (live). `/data` survives a firmware update, the rootfs
+  does not.
 - Service name `com.victronenergy.grid.esphome-teleinfo`, instance 40 by default.
 - This repository is public. A host name, an address, a serial or a meter reading
   belongs in `settings.json` on the device, never in a commit.

@@ -9,14 +9,22 @@
 # project is public and an installation address is nobody else's business.
 #
 # Assumes the repository lives at INSTALL_DIR (git clone, like the sibling
-# drivers). Nothing is written outside /data and /service, so a firmware update
-# keeps the checkout and the settings but restores the stock service tree:
-# re-run this script after an update.
+# drivers). Nothing is written outside /data, /service and
+# /opt/victronenergy/service, so a firmware update keeps the checkout and the
+# settings but restores the stock service tree: re-run this script after an
+# update. A plain reboot needs nothing, the service comes back on its own.
 set -eu
 
 INSTALL_DIR="${INSTALL_DIR:-/data/etc/dbus-teleinfo-esphome}"
 STATE_DIR="${STATE_DIR:-/data/etc/dbus-teleinfo-state}"
+# The runit service must live in TWO places:
+#   /opt/victronenergy/service/  persistent, copied into /service at every boot
+#   /service/                    the live bind mount of that copy (overlays.sh)
+# Writing only to /service works until the next reboot, silently: the meter
+# disappears from VRM and nothing says why.
+SERVICE_SRC="/opt/victronenergy/service/teleinfo-grid"
 SERVICE_DIR="/service/teleinfo-grid"
+TEST_SERVICE_SRC="/opt/victronenergy/service/teleinfo-grid-test"
 TEST_SERVICE_DIR="/service/teleinfo-grid-test"
 LOGDIR="/var/log/dbus-teleinfo"
 DEVICE_INSTANCE="${TELEINFO_DEVICE_INSTANCE:-40}"
@@ -32,7 +40,7 @@ while [ $# -gt 0 ]; do
         --host=*) HOST="${1#--host=}"; shift ;;
         --port) PORT="$2"; shift 2 ;;
         --dry-run) DRY_RUN=1; shift ;;
-        --test) TEST_MODE=1; SERVICE_DIR="$TEST_SERVICE_DIR"; shift ;;
+        --test) TEST_MODE=1; SERVICE_DIR="$TEST_SERVICE_DIR"; SERVICE_SRC="$TEST_SERVICE_SRC"; shift ;;
         --force) FORCE=1; shift ;;
         *) echo "argument inconnu: $1" >&2; exit 2 ;;
     esac
@@ -133,10 +141,10 @@ fi
 
 say "== Service runit"
 if [ "$DRY_RUN" = 1 ]; then
-    say "  [dry-run] créer $SERVICE_DIR/run"
+    say "  [dry-run] créer $SERVICE_SRC/run (persistant) et $SERVICE_DIR/run (actif)"
 else
-    mkdir -p "$SERVICE_DIR"
-    cat > "$SERVICE_DIR/run" <<EOF
+    mkdir -p "$SERVICE_SRC" "$SERVICE_DIR"
+    cat > "$SERVICE_SRC/run" <<EOF
 #!/bin/sh
 exec 2>&1
 . /etc/profile.d/profile.sh
@@ -146,8 +154,10 @@ exec python3 '$INSTALL_DIR/dbus-teleinfo.py' \\
     --service-name $SERVICE_NAME \\
     >> '$LOGDIR/current' 2>&1
 EOF
+    chmod +x "$SERVICE_SRC/run"
+    cp "$SERVICE_SRC/run" "$SERVICE_DIR/run"
     chmod +x "$SERVICE_DIR/run"
-    say "  $SERVICE_DIR/run créé"
+    say "  $SERVICE_SRC/run créé (survit au reboot), copié dans $SERVICE_DIR"
 fi
 
 say "== Démarrage"

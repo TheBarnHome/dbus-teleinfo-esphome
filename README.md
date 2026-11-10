@@ -92,11 +92,15 @@ sh install.sh --host <esphome-host>            # add --test for a second instanc
 
 `install.sh` checks `dbus`/`gi`, initialises `velib_python`, fast-forwards the
 checkout, writes `/data/etc/dbus-teleinfo-state/settings.json`, **runs the probe
-and refuses to install if the link is dead** (`--force` overrides), writes
-`/service/teleinfo-grid/run`, and restarts the service.
+and refuses to install if the link is dead** (`--force` overrides), installs the
+runit service and restarts it.
 
-A firmware update restores the stock `/service` tree: re-run the script
-afterwards. Nothing is written outside `/data` and `/service`.
+The service is written to **both** `/opt/victronenergy/service/teleinfo-grid/`
+and `/service/teleinfo-grid/`. `/service` is a bind mount of a copy of
+`/opt/victronenergy/service` taken at boot (`/etc/init.d/overlays.sh`), so a
+service written only to `/service` works until the next reboot and then vanishes
+without saying anything. Ours survives a reboot; a **firmware update** replaces
+the rootfs and re-running this script is required.
 
 Then:
 
