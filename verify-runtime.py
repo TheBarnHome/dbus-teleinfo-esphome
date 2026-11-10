@@ -81,7 +81,10 @@ def main() -> int:
         value = read(bus, dbus, args.service, path)
         if path == "/Connected":
             connected = value
-        if isinstance(value, dbus.Double):
+        if isinstance(value, dbus.Array) and not len(value):
+            # Venus publishes None as an empty array: "no value", not zero.
+            value = "<invalide>"
+        elif isinstance(value, dbus.Double):
             value = float(value)
         elif isinstance(value, (dbus.Int16, dbus.Int32, dbus.Int64, dbus.UInt16, dbus.UInt32, dbus.UInt64)):
             value = int(value)

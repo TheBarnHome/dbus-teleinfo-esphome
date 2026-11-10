@@ -48,9 +48,12 @@ Measured on Venus OS v3.70, by reading the installed sources:
   `/Ac/Lx/Power`, `/Ac/Lx/Voltage`, `/Ac/Lx/Current`, `/Ac/Frequency` and
   `/Ac/Energy/*` published here is logged to VRM, with `/ProductId`,
   `/Serial`, `/FirmwareVersion` and `/CustomName` as the device identity.
-- `dbus-modbustcp/attributes.csv` maps the same service to registers 2600-2648
-  (unit = device instance + 100), so a Modbus client can read it with no extra
-  work.
+- `dbus-modbustcp/attributes.csv` maps the same service to registers 2600-2648,
+  so a Modbus client reads it with no extra work. The unit id is the device
+  instance — **40 answered for instance 40** on 3.70, not the `100 + instance`
+  some Victron documents describe; `unitid2di.csv` has no grid entry, so the
+  gateway falls back to matching the instance. Check it before wiring Home
+  Assistant: `read 2638` on the unit returns `/Ac/Power`.
 
 ## Requirements
 
@@ -231,11 +234,29 @@ assert the exact request paths, which is what catches URL-quoting mistakes.
 | HTTP client, URL quoting, failure paths | done, tested against a stand-in server |
 | D-Bus `com.victronenergy.grid` service | written |
 | Poll thread (never blocks D-Bus) | written |
-| `--probe` against a real ESPHome node | **measured**: 11/11 entities, 742 W, 19 152 kWh, `HPJB` |
-| `install.sh` + runit service | written, not run on the GX yet |
+| `--probe` against a real ESPHome node | **measured**: 11/11 entities, `HPJB` |
+| `install.sh` + runit service | **installed** on the GX, up, `/Connected = 1` |
+| systemcalc picks it up | **measured**: `/Ac/Grid/L1/Power` went from an empty value to 914 W |
+| Modbus TCP | **measured**: unit 40, register 2638 = 896 W, 2634 = 82 783.69 kWh |
+| VRM | vrmlogger logged `Found: com.victronenergy.grid.esphome-teleinfo ... storing items`; the portal shows it at its next upload |
 
-What is **not** validated yet: the service on the GX itself, and what VRM shows
-once it is running.
+End-to-end on the target, before → after:
+
+| Path (com.victronenergy.system) | Before | After |
+|---|---|---|
+| `/Ac/Grid/L1/Power` | empty (no value) | 914 W |
+| `/Ac/Grid/NumberOfPhases` | empty | 1 |
+| `/Ac/Consumption/L1/Power` | 1 W | 922 W (914 grid + 8 on the AC output) |
+| `/Ac/ConsumptionOnInput/L1/Power` | empty | 914 W |
+
+The consumption figure is the visible consequence: the installation now counts
+what the meter draws, which it simply could not see before. `/Ac/L1/Current`
+stays empty because standard-mode teleinfo carries no current — the GUI shows a
+blank there, not a zero.
+
+What is **not** validated: the dashboard as VRM renders it, and behaviour across
+a GX reboot (the runit service is in the stock `/service` tree, re-created by
+`install.sh` after a firmware update).
 
 ## License
 

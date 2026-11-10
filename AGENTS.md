@@ -116,6 +116,18 @@ systemcalc's consumption computation reads `/Ac/<phase>/Power` (and `Current`)
 phase by phase. A driver that publishes only the total leaves
 `/Ac/Consumption/*` empty while the grid tile still looks right.
 
+### The Modbus unit id is the device instance, not `100 + instance`
+
+Measured on 3.70: instance 40 answers on unit **40**. `unitid2di.csv` carries no
+grid entry, so the gateway falls back to matching `/DeviceInstance`. Copying the
+`100 + instance` rule from older Victron documentation gets a silent timeout and
+a support conversation about a meter that "does not exist". Verify by reading
+register 2638 on the unit that should serve `/Ac/Power`.
+
+Also: a `None` value is published as an **empty array** on the bus, which is
+Venus's "invalid", not a zero. That is what an unread tariff or an offline power
+looks like to `dbus-send` and to the GUI.
+
 ### The D-Bus main loop is single threaded
 
 An HTTP read that waits for its timeout inside a GLib callback freezes the
